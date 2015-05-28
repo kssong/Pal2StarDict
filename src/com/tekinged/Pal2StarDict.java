@@ -1,4 +1,5 @@
 package com.tekinged;
+
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -22,9 +23,9 @@ public class Pal2StarDict {
 	public static void main(String[] args) throws Exception {
 		if (args.length < 4) {
 			System.out
-					.println("Usage : java -jar Palauan2StarDict.jar mysql-jdbc-url user pass filename [options]");
+					.println("Usage : java -jar Pal2StarDict.jar mysql-jdbc-url user pass filename [options]");
 			System.out
-					.println("\teg) java -jar Palauan2StarDict.jar jdbc:mysql://127.0.0.1/palauan root pass /home/kssong/palauan-20150525");
+					.println("\teg) java -jar Pal2StarDict.jar jdbc:mysql://127.0.0.1/palauan root pass /home/kssong/palauan-20150525");
 			System.out.println("\t-n : no resources (image, mp3)");
 			System.out.println("\t-v : verbose");
 			System.exit(-1);

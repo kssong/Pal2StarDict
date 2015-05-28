@@ -106,8 +106,7 @@ public class DictWriter {
 			out.println(" /" + syn);
 		out.println("</b><br>");
 		if (e.haveImage) {
-			out.println("<img src=\"" + e.id
-					+ ".jpg\" style=\"width:100%\"/>");
+			out.println("<img src=\"" + e.id + ".jpg\" style=\"width:100%\"/>");
 			File imgFile = new File(getResDir(), "" + e.id + ".jpg");
 			files.add(new ArchiveEntry("res/" + imgFile.getName(), imgFile));
 		}
@@ -159,8 +158,8 @@ public class DictWriter {
 			}
 		});
 		File idxFile = new File(dir, filename + ".idx");
-		DataOutputStream idxOut = new DataOutputStream(
-				new FileOutputStream(idxFile));
+		DataOutputStream idxOut = new DataOutputStream(new FileOutputStream(
+				idxFile));
 		files.add(new ArchiveEntry(idxFile.getName(), idxFile));
 		for (Idx idx : idxList) {
 			byte[] buf = idx.pal.getBytes("UTF-8");
@@ -229,8 +228,7 @@ public class DictWriter {
 	private void archive(List<ArchiveEntry> fileList, File target)
 			throws IOException {
 		byte[] buf = new byte[1024];
-		ZipOutputStream out = new ZipOutputStream(new FileOutputStream(
-				target));
+		ZipOutputStream out = new ZipOutputStream(new FileOutputStream(target));
 		for (int i = 0; i < fileList.size(); i++) {
 			FileInputStream in = new FileInputStream(fileList.get(i).file);
 			out.putNextEntry(new ZipEntry(fileList.get(i).entry));
