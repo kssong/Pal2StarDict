@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -79,12 +80,13 @@ public class DictWriter {
 		ByteArrayOutputStream baOut = new ByteArrayOutputStream();
 		PrintStream out = new PrintStream(baOut);
 		out.println("<script>function show_tip(t,s){t.innerHTML=s;}</script>");
+		out.println("<script>function play_audio(a){var audio = document.getElementById(a); audio.play();}</script>");
 		writeEntry(out, e);
 		Idx idx = new Idx();
 		for (int i = 0; i < e.subs.size(); i++) {
 			DictEntry x = e.subs.get(i);
-			if (x.pos == null || x.pos.indexOf("var.") < 0)
-				writeEntry(out, x);
+			// if (x.pos == null || x.pos.indexOf("var.") < 0)
+			writeEntry(out, x);
 			Syn syn = new Syn();
 			syn.pal = x.pal;
 			idx.syns.add(syn);
@@ -101,52 +103,89 @@ public class DictWriter {
 	}
 
 	private void writeEntry(PrintStream out, DictEntry e) throws IOException {
-		out.println("<br><b>" + e.pal);
+		out.println("<p><b>" + e.pal);
 		for (String syn : e.syns)
 			out.println(" /" + syn);
-		out.println("</b><br>");
-		if (e.haveImage) {
-			out.println("<img src=\"" + e.id + ".jpg\" style=\"width:100%\"/>");
-			File imgFile = new File(getResDir(), "" + e.id + ".jpg");
-			files.add(new ArchiveEntry("res/" + imgFile.getName(), imgFile));
-		}
-		if (e.haveAudio) {
-			out.println("<audio src=\"" + e.id
-					+ ".mp3\" controls=\"true\"></audio><br>");
-			File mp3File = new File(getResDir(), "" + e.id + ".mp3");
-			files.add(new ArchiveEntry("res/" + mp3File.getName(), mp3File));
-		}
+		out.println("</b>");
 		if (e.pos != null) {
-			out.println("<font color=\"green\"><i><u><div onclick=\"show_tip(this,'"
+			out.println("&nbsp;&nbsp;<font color=\"green\"><i><u><span onclick=\"show_tip(this,'"
 					+ posMap.get(e.pos)
 					+ "');\">"
 					+ e.pos
-					+ "</div></u></i></font>");
-			out.println("<br>");
+					+ "</span></u></i></font>");
+		}
+		if (e.haveAudio) {
+			out.println("&nbsp;&nbsp;<img src=\"play.png\" style=\"width:16pt;height:16pt\" onclick=\"play_audio('a"
+					+ e.id + "');\"/>");
+			out.println("<audio id=\"a" + e.id + "\" src=\"" + e.id
+					+ ".mp3\" preload=\"none\"></audio>");
+			File mp3File = new File(getResDir(), "" + e.id + ".mp3");
+			files.add(new ArchiveEntry("res/" + mp3File.getName(), mp3File));
+		}
+		if (e.haveImage) {
+			out.println("<br><img src=\"" + e.id
+					+ ".jpg\" style=\"width:100%\"/>");
+			File imgFile = new File(getResDir(), "" + e.id + ".jpg");
+			files.add(new ArchiveEntry("res/" + imgFile.getName(), imgFile));
 		}
 		if (e.eng != null) {
-			out.println(e.eng.replaceAll("\n", "<br>"));
 			out.println("<br>");
+			out.println(e.eng.replaceAll("\n", "<br>"));
 		}
 		if (e.pdef != null) {
+			out.println("<br>");
 			out.println("<font color=\"blue\">"
 					+ e.pdef.replaceAll("\n", "<br>") + "</font>");
-			out.println("<br>");
 		}
 		if (e.xrefs.size() > 0) {
+			out.println("<br>");
 			out.println("<b>See also :</b>");
 			for (String xref : e.xrefs) {
 				out.println("<a href=\"bword://" + xref + "\">" + xref
 						+ "</a> ");
 			}
-			out.println("<br>");
 		}
 		if (e.examples.size() > 0) {
-			for (String ex : e.examples) {
-				out.println("<font color=\"purple\">" + ex + "</font>");
+			for (DictEntry.Ex ex : e.examples) {
 				out.println("<br>");
+				if (ex.audio != -1) {
+					out.println("<img src=\"play.png\" style=\"width:16pt;height:16pt\" onclick=\"play_audio('e"
+							+ ex.audio + "');\"/>");
+					out.println("<audio id=\"e" + ex.audio + "\" src=\"ex/"
+							+ ex.audio + ".mp3\" preload=\"none\"></audio>");
+					File mp3File = new File(getResDir(), "ex/" + ex.audio
+							+ ".mp3");
+					files.add(new ArchiveEntry("res/ex/" + mp3File.getName(),
+							mp3File));
+				}
+				out.println("<font color=\"purple\">" + ex.palauan + "</font>");
+				out.println("&nbsp;&nbsp;<font color=\"purple\"><i>"
+						+ ex.english + "</i></font>");
 			}
 		}
+		if (e.proverbs.size() > 0) {
+			for (DictEntry.Prov prov : e.proverbs) {
+				out.println("<br>");
+				if (prov.audio != -1) {
+					out.println("<img src=\"play.png\" style=\"width:16pt;height:16pt\" onclick=\"play_audio('p"
+							+ prov.audio + "');\"/>");
+					out.println("<audio id=\"p" + prov.audio + "\" src=\"prov/"
+							+ prov.audio + ".mp3\" preload=\"none\"></audio>");
+					File mp3File = new File(getResDir(), "prov/" + prov.audio
+							+ ".mp3");
+					files.add(new ArchiveEntry("res/prov/" + mp3File.getName(),
+							mp3File));
+				}
+				out.println("<font color=\"purple\">" + prov.palauan
+						+ "</font>");
+				out.println("&nbsp;&nbsp;<font color=\"purple\"><i>"
+						+ prov.english + "</i></font>");
+				if (prov.explanation != null)
+					out.println("<br><font color=\"purple\"><i>"
+							+ prov.explanation + "</i></font>");
+			}
+		}
+		out.println("</p>");
 	}
 
 	public void wrapUp() throws IOException {
@@ -224,6 +263,19 @@ public class DictWriter {
 	}
 
 	private List<ArchiveEntry> files = new ArrayList<ArchiveEntry>();
+
+	public void addResourceEntry(String resource) throws IOException {
+		InputStream in = getClass().getResourceAsStream(resource);
+		File file = new File(getResDir(), resource);
+		OutputStream out = new FileOutputStream(file);
+		byte[] buf = new byte[1024];
+		int n = -1;
+		while ((n = in.read(buf)) != -1)
+			out.write(buf, 0, n);
+		out.flush();
+		out.close();
+		files.add(new ArchiveEntry("res" + resource, file));
+	}
 
 	private void archive(List<ArchiveEntry> fileList, File target)
 			throws IOException {

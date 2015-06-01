@@ -17,8 +17,11 @@ import java.util.Map;
 public class Pal2StarDict {
 
 	private static Connection conn;
+	private static DictWriter dict;
 
 	private static boolean verbose = false;
+	private static boolean addImage = true;
+	private static boolean addAudio = true;
 
 	public static void main(String[] args) throws Exception {
 		if (args.length < 4) {
@@ -42,12 +45,15 @@ public class Pal2StarDict {
 		System.setProperty("file.encoding", "UTF-8");
 		System.setProperty("line.separator", "\n");
 
-		boolean addImage = no_resources ? false : true;
-		boolean addAudio = no_resources ? false : true;
+		addImage = no_resources ? false : true;
+		addAudio = no_resources ? false : true;
 
 		Class.forName("com.mysql.jdbc.Driver");
 		conn = DriverManager.getConnection(args[0], args[1], args[2]);
-		DictWriter dict = new DictWriter(args[3]);
+		dict = new DictWriter(args[3]);
+
+		if (addAudio)
+			dict.addResourceEntry("/play.png");
 		{
 			Map<String, String> posMap = new Hashtable<String, String>();
 			Statement stmt = conn.createStatement();
@@ -75,14 +81,15 @@ public class Pal2StarDict {
 				e.id = rs.getInt("id");
 				if (verbose)
 					System.out.println("processing entry " + (++current) + "/"
-							+ total + "=" + "#" + e.id);
+							+ total + ";" + "#" + e.id + "='" + e.pal + "'");
 				if (addImage)
 					addImage(dict, e);
 				if (addAudio)
 					addAudio(dict, e);
 				addCrossRefs(e.id, e.xrefs);
 				addExamples(e.id, e.examples);
-				addSynonyms(e.id, e.syns);
+				addProverbs(e.id, e.proverbs);
+				addSynonyms(e.id, e.pal, e.syns);
 				{
 					Statement stmt2 = conn.createStatement();
 					String sql2 = "select pal,pos,eng,pdef,id from all_words3 where stem="
@@ -95,13 +102,27 @@ public class Pal2StarDict {
 						e2.eng = rs2.getString("eng");
 						e2.pdef = rs2.getString("pdef");
 						e2.id = rs2.getInt("id");
+						// if (verbose)
+						// System.out.println("processing sub entry : #"
+						// + e2.id);
 						if (addImage)
 							addImage(dict, e2);
 						if (addAudio)
 							addAudio(dict, e2);
 						addCrossRefs(e2.id, e2.xrefs);
 						addExamples(e2.id, e2.examples);
-						addSynonyms(e2.id, e2.syns);
+						addProverbs(e2.id, e2.proverbs);
+						if (verbose) {
+							if (e2.examples.size() > 0) {
+								System.out.println("Example in sub entry : "
+										+ e2.id);
+							}
+							if (e2.proverbs.size() > 0) {
+								System.out.println("Proverb in sub entry : "
+										+ e2.id);
+							}
+						}
+						addSynonyms(e.id, e2.pal, e2.syns);
 						e.subs.add(e2);
 					}
 					rs2.close();
@@ -117,6 +138,18 @@ public class Pal2StarDict {
 
 	private static int selectCount(String sql) throws Exception {
 		int result = 0;
+		Statement stmt = conn.createStatement();
+		ResultSet rs = stmt.executeQuery(sql);
+		if (rs.next()) {
+			result = rs.getInt(1);
+		}
+		rs.close();
+		stmt.close();
+		return result;
+	}
+
+	private static int selectSingleInteger(String sql) throws Exception {
+		int result = -1;
 		Statement stmt = conn.createStatement();
 		ResultSet rs = stmt.executeQuery(sql);
 		if (rs.next()) {
@@ -201,23 +234,102 @@ public class Pal2StarDict {
 		stmt.close();
 	}
 
-	private static void addExamples(int id, List<String> examples)
+	private static void addExamples(int id, List<DictEntry.Ex> examples)
 			throws Exception {
 		Statement stmt = conn.createStatement();
-		String sql = "select palauan,english from examples where stem=" + id;
+		String sql = "select palauan,english,id from examples where stem=" + id;
 		ResultSet rs = stmt.executeQuery(sql);
 		while (rs.next()) {
-			examples.add(rs.getString("palauan"));
-			examples.add(rs.getString("english"));
+			DictEntry.Ex ex = new DictEntry.Ex();
+			ex.palauan = rs.getString("palauan");
+			ex.english = rs.getString("english");
+			if (addAudio) {
+				int extid = rs.getInt("id");
+				if (selectSingleInteger("select id from upload_audio where uploaded=1 and externalid="
+						+ extid
+						+ " and externaltable like 'examples' and externalcolumn like 'palauan'") > 0) {
+					File exDir = new File(dict.getResDir(), "ex");
+					if ((exDir.exists() && exDir.isDirectory())
+							|| exDir.mkdirs()) {
+						File mp3File = new File(exDir, "" + extid + ".mp3");
+						if (!mp3File.exists()) {
+							try {
+								saveUrl(mp3File.getAbsolutePath(),
+										"http://tekinged.com/uploads/mp3s/examples.palauan/"
+												+ extid + ".mp3");
+								ex.audio = extid;
+							} catch (Exception exc) {
+								if (verbose)
+									exc.printStackTrace();
+							}
+						} else
+							ex.audio = extid;
+					} else {
+						if (verbose)
+							System.out
+									.println("examples dir creation faield : "
+											+ exDir.getAbsolutePath());
+					}
+				}
+			}
+			examples.add(ex);
 		}
 		rs.close();
 		stmt.close();
 	}
 
-	private static void addSynonyms(int id, List<String> syns) throws Exception {
+	private static void addProverbs(int id, List<DictEntry.Prov> provs)
+			throws Exception {
+		Statement stmt = conn.createStatement();
+		String sql = "select palauan,english,explanation,id from proverbs where stem="
+				+ id;
+		ResultSet rs = stmt.executeQuery(sql);
+		while (rs.next()) {
+			DictEntry.Prov prov = new DictEntry.Prov();
+			prov.palauan = rs.getString("palauan");
+			prov.english = rs.getString("english");
+			prov.explanation = rs.getString("explanation");
+			if (addAudio) {
+				int extid = rs.getInt("id");
+				if (selectSingleInteger("select id from upload_audio where uploaded=1 and externalid="
+						+ extid
+						+ " and externaltable like 'proverbs' and externalcolumn like 'palauan'") > 0) {
+					File provDir = new File(dict.getResDir(), "prov");
+					if ((provDir.exists() && provDir.isDirectory())
+							|| provDir.mkdirs()) {
+						File mp3File = new File(provDir, "" + extid + ".mp3");
+						if (!mp3File.exists()) {
+							try {
+								saveUrl(mp3File.getAbsolutePath(),
+										"http://tekinged.com/uploads/mp3s/proverbs.palauan/"
+												+ extid + ".mp3");
+								prov.audio = extid;
+							} catch (Exception exc) {
+								if (verbose)
+									exc.printStackTrace();
+							}
+						} else
+							prov.audio = extid;
+					} else {
+						if (verbose)
+							System.out
+									.println("proverbs dir creation faield : "
+											+ provDir.getAbsolutePath());
+					}
+				}
+			}
+			provs.add(prov);
+		}
+		rs.close();
+		stmt.close();
+	}
+
+	private static void addSynonyms(int id, String pal, List<String> syns)
+			throws Exception {
 		Statement stmt = conn.createStatement();
 		String sql = "select pal,pos,eng,pdef,id from all_words3 where stem="
-				+ id + " and id<>stem and pos like 'var.'";
+				+ id + " and id<>stem and pos like 'var.' and eng='" + pal
+				+ "'";
 		ResultSet rs = stmt.executeQuery(sql);
 		while (rs.next()) {
 			syns.add(rs.getString("pal"));
