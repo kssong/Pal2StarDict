@@ -6,6 +6,8 @@ import java.util.List;
 public class DictEntry {
 	public String pal;
 	public String pos;
+	public String origin;
+	public String oword;
 	public String eng;
 	public String pdef;
 	public int id;

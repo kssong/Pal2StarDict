@@ -2,6 +2,7 @@ package com.tekinged;
 
 import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -22,6 +23,7 @@ public class Pal2StarDict {
 	private static boolean verbose = false;
 	private static boolean addImage = true;
 	private static boolean addAudio = true;
+	private static boolean ignore_download = false;
 
 	public static void main(String[] args) throws Exception {
 		if (args.length < 4) {
@@ -30,6 +32,7 @@ public class Pal2StarDict {
 			System.out
 					.println("\teg) java -jar Pal2StarDict.jar jdbc:mysql://127.0.0.1/palauan root pass /home/kssong/palauan-20150525");
 			System.out.println("\t-n : no resources (image, mp3)");
+			System.out.println("\t-i : ignore resource download (image, mp3)");
 			System.out.println("\t-v : verbose");
 			System.exit(-1);
 		}
@@ -38,6 +41,8 @@ public class Pal2StarDict {
 			String a = args[i];
 			if (a.equals("-n"))
 				no_resources = true;
+			if (a.equals("-i"))
+				ignore_download = true;
 			if (a.equals("-v"))
 				verbose = true;
 		}
@@ -70,7 +75,7 @@ public class Pal2StarDict {
 			int total = selectCount("select count(*) from all_words3 where id=stem");
 			int current = 0;
 			Statement stmt = conn.createStatement();
-			String sql = "select pal,pos,eng,pdef,id from all_words3 where id=stem";
+			String sql = "select pal,pos,eng,pdef,id,origin,oword from all_words3 where id=stem";
 			ResultSet rs = stmt.executeQuery(sql);
 			while (rs.next()) {
 				DictEntry e = new DictEntry();
@@ -79,6 +84,8 @@ public class Pal2StarDict {
 				e.eng = rs.getString("eng");
 				e.pdef = rs.getString("pdef");
 				e.id = rs.getInt("id");
+				e.origin = rs.getString("origin");
+				e.oword = rs.getString("oword");
 				if (verbose)
 					System.out.println("processing entry " + (++current) + "/"
 							+ total + ";" + "#" + e.id + "='" + e.pal + "'");
@@ -89,10 +96,10 @@ public class Pal2StarDict {
 				addCrossRefs(e.id, e.xrefs);
 				addExamples(e.id, e.examples);
 				addProverbs(e.id, e.proverbs);
-				addSynonyms(e.id, e.pal, e.syns);
+				addSynonyms(e.id, e.pal, e, e.syns);
 				{
 					Statement stmt2 = conn.createStatement();
-					String sql2 = "select pal,pos,eng,pdef,id from all_words3 where stem="
+					String sql2 = "select pal,pos,eng,pdef,id,origin,oword from all_words3 where stem="
 							+ e.id + " and id<>stem";
 					ResultSet rs2 = stmt2.executeQuery(sql2);
 					while (rs2.next()) {
@@ -102,9 +109,8 @@ public class Pal2StarDict {
 						e2.eng = rs2.getString("eng");
 						e2.pdef = rs2.getString("pdef");
 						e2.id = rs2.getInt("id");
-						// if (verbose)
-						// System.out.println("processing sub entry : #"
-						// + e2.id);
+						e2.origin = rs2.getString("origin");
+						e2.oword = rs2.getString("oword");
 						if (addImage)
 							addImage(dict, e2);
 						if (addAudio)
@@ -122,8 +128,9 @@ public class Pal2StarDict {
 										+ e2.id);
 							}
 						}
-						addSynonyms(e.id, e2.pal, e2.syns);
-						e.subs.add(e2);
+						addSynonyms(e.id, e2.pal, e2, e2.syns);
+						if (e2.pos == null || e2.pos.indexOf("var.") < 0)
+							e.subs.add(e2);
 					}
 					rs2.close();
 					stmt2.close();
@@ -162,6 +169,13 @@ public class Pal2StarDict {
 
 	private static void saveUrl(final String filename, final String urlString)
 			throws MalformedURLException, IOException {
+		if (ignore_download) {
+			File f = new File(filename);
+			if (f.exists())
+				return;
+			else
+				throw new FileNotFoundException("File not found : " + filename);
+		}
 		if (verbose)
 			System.out.println("saving '" + filename + "'...");
 		BufferedInputStream in = null;
@@ -324,17 +338,25 @@ public class Pal2StarDict {
 		stmt.close();
 	}
 
-	private static void addSynonyms(int id, String pal, List<String> syns)
-			throws Exception {
+	private static void addSynonyms(int id, String pal, DictEntry de,
+			List<String> syns) throws Exception {
 		Statement stmt = conn.createStatement();
 		String sql = "select pal,pos,eng,pdef,id from all_words3 where stem="
 				+ id + " and id<>stem and pos like 'var.' and eng='" + pal
 				+ "'";
 		ResultSet rs = stmt.executeQuery(sql);
 		while (rs.next()) {
-			syns.add(rs.getString("pal"));
+			DictEntry e = new DictEntry();
+			e.pal = rs.getString("pal");
+			e.pos = rs.getString("pos");
+			e.eng = rs.getString("eng");
+			e.pdef = rs.getString("pdef");
+			e.id = rs.getInt("id");
+			syns.add(e.pal);
+			if (e.pdef != null)
+				de.pdef = de.pdef + " / " + e.pdef;
+			addExamples(e.id, de.examples);
+			addProverbs(e.id, de.proverbs);
 		}
-		rs.close();
-		stmt.close();
 	}
 }

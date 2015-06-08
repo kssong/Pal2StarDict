@@ -85,7 +85,6 @@ public class DictWriter {
 		Idx idx = new Idx();
 		for (int i = 0; i < e.subs.size(); i++) {
 			DictEntry x = e.subs.get(i);
-			// if (x.pos == null || x.pos.indexOf("var.") < 0)
 			writeEntry(out, x);
 			Syn syn = new Syn();
 			syn.pal = x.pal;
@@ -127,6 +126,17 @@ public class DictWriter {
 					+ ".jpg\" style=\"width:100%\"/>");
 			File imgFile = new File(getResDir(), "" + e.id + ".jpg");
 			files.add(new ArchiveEntry("res/" + imgFile.getName(), imgFile));
+		}
+		if (e.origin != null && !e.origin.trim().equals("")
+				&& !e.origin.trim().equals("native")) {
+			out.println("<br>");
+			out.print("[From ");
+			out.print(e.origin.replaceAll("G", "German")
+					.replaceAll("S", "Spanish").replaceAll("J", "Japanese")
+					.replaceAll("T", "Tagalog").replaceAll("E", "English"));
+			if (e.oword != null)
+				out.print(" " + e.oword);
+			out.println("]");
 		}
 		if (e.eng != null) {
 			out.println("<br>");
